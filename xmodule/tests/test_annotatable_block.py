@@ -120,7 +120,10 @@ class AnnotatableBlockTestCase(unittest.TestCase):  # lint-amnesty, pylint: disa
         actual_num_annotations = el.xpath('count(//span[contains(@class,"annotatable-span")])')
         assert expected_num_annotations == actual_num_annotations, 'check number of annotations'
 
-    @pytest.mark.skipif(settings.USE_EXTRACTED_ANNOTATABLE_BLOCK, reason="Skipping: `get_html` is not applicable to extracted annotatable XBlock.")
+    @pytest.mark.skipif(
+            settings.USE_EXTRACTED_ANNOTATABLE_BLOCK,
+            reason="Skipping: `get_html` is not applicable to extracted annotatable XBlock."
+    )
     def test_get_html(self):
         context = self.annotatable.get_html()
         for key in ['display_name', 'element_id', 'content_html', 'instructions_html']:
