@@ -121,8 +121,8 @@ class AnnotatableBlockTestCase(unittest.TestCase):  # lint-amnesty, pylint: disa
         assert expected_num_annotations == actual_num_annotations, 'check number of annotations'
 
     @pytest.mark.skipif(
-            settings.USE_EXTRACTED_ANNOTATABLE_BLOCK,
-            reason="Skipping: `get_html` is not applicable to extracted annotatable XBlock."
+        settings.USE_EXTRACTED_ANNOTATABLE_BLOCK,
+        reason="Skipping: `get_html` is not applicable to extracted annotatable XBlock."
     )
     def test_get_html(self):
         context = self.annotatable.get_html()
