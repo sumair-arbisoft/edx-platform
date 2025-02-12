@@ -3,6 +3,7 @@
 
 import unittest
 
+import pytest
 from django.conf import settings
 from lxml import etree
 from opaque_keys.edx.locator import BlockUsageLocator, CourseLocator
@@ -119,10 +120,8 @@ class AnnotatableBlockTestCase(unittest.TestCase):  # lint-amnesty, pylint: disa
         actual_num_annotations = el.xpath('count(//span[contains(@class,"annotatable-span")])')
         assert expected_num_annotations == actual_num_annotations, 'check number of annotations'
 
+    @pytest.mark.skipif(settings.USE_EXTRACTED_ANNOTATABLE_BLOCK, reason="Skipping: `get_html` is not applicable to extracted annotatable XBlock.")
     def test_get_html(self):
-        if settings.USE_EXTRACTED_WORD_CLOUD_BLOCK:
-            self.skipTest("Skipping: `get_html` is not applicable to extracted annotatable XBlock.")
-
         context = self.annotatable.get_html()
         for key in ['display_name', 'element_id', 'content_html', 'instructions_html']:
             assert key in context
