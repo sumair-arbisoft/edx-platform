@@ -523,6 +523,18 @@ def get_custom_pages_url(course_locator) -> str:
     return custom_pages_url
 
 
+def get_course_libraries_url(course_locator) -> str:
+    """
+    Gets course authoring microfrontend URL for custom pages view.
+    """
+    url = None
+    if libraries_v2_enabled():
+        mfe_base_url = get_course_authoring_url(course_locator)
+        if mfe_base_url:
+            url = f'{mfe_base_url}/course/{course_locator}/libraries'
+    return url
+
+
 def get_taxonomy_list_url() -> str | None:
     """
     Gets course authoring microfrontend URL for taxonomy list page view.
@@ -1196,6 +1208,7 @@ def duplicate_block(
             store.update_item(parent, user.id)
 
         # .. event_implemented_name: XBLOCK_DUPLICATED
+        # .. event_type: org.openedx.content_authoring.xblock.duplicated.v1
         XBLOCK_DUPLICATED.send_event(
             time=datetime.now(timezone.utc),
             xblock_info=DuplicatedXBlockData(
@@ -2359,7 +2372,7 @@ def get_xblock_render_error(request, xblock):
     return ""
 
 
-def create_or_update_xblock_upstream_link(xblock, course_key: str | CourseKey, created: datetime | None = None):
+def create_or_update_xblock_upstream_link(xblock, course_key: str | CourseKey, created: datetime | None = None) -> None:
     """
     Create or update upstream->downstream link in database for given xblock.
     """
@@ -2373,7 +2386,7 @@ def create_or_update_xblock_upstream_link(xblock, course_key: str | CourseKey, c
         lib_component = None
     PublishableEntityLink.update_or_create(
         lib_component,
-        upstream_usage_key=xblock.upstream,
+        upstream_usage_key=upstream_usage_key,
         upstream_context_key=str(upstream_usage_key.context_key),
         downstream_context_key=course_key,
         downstream_usage_key=xblock.usage_key,

@@ -10,11 +10,11 @@ import re
 import shutil
 import tarfile
 from datetime import datetime, timezone
+from importlib.metadata import entry_points
 from tempfile import NamedTemporaryFile, mkdtemp
 
 import aiohttp
 import olxcleaner
-import pkg_resources
 from ccx_keys.locator import CCXLocator
 from celery import shared_task
 from celery.utils.log import get_task_logger
@@ -67,6 +67,7 @@ from common.djangoapps.student.roles import CourseInstructorRole, CourseStaffRol
 from common.djangoapps.util.monitoring import monitor_import_failure
 from openedx.core.djangoapps.content.learning_sequences.api import key_supports_outlines
 from openedx.core.djangoapps.content_libraries import api as v2contentlib_api
+from openedx.core.djangoapps.content_tagging.api import make_copied_tags_editable
 from openedx.core.djangoapps.course_apps.toggles import exams_ida_enabled
 from openedx.core.djangoapps.discussions.config.waffle import ENABLE_NEW_STRUCTURE_DISCUSSIONS
 from openedx.core.djangoapps.discussions.models import DiscussionsConfiguration, Provider
@@ -95,7 +96,7 @@ LOGGER = get_task_logger(__name__)
 FILE_READ_CHUNK = 1024  # bytes
 FULL_COURSE_REINDEX_THRESHOLD = 1
 ALL_ALLOWED_XBLOCKS = frozenset(
-    [entry_point.name for entry_point in pkg_resources.iter_entry_points("xblock.v1")]
+    [entry_point.name for entry_point in entry_points(group="xblock.v1")]
 )
 
 
@@ -1128,7 +1129,7 @@ def _check_broken_links(task_instance, user_id, course_key_string, language):
     """
     user = _validate_user(task_instance, user_id, language)
 
-    task_instance.status.set_state('Scanning')
+    task_instance.status.set_state(UserTaskStatus.IN_PROGRESS)
     course_key = CourseKey.from_string(course_key_string)
 
     url_list = _scan_course_for_links(course_key)
@@ -1197,10 +1198,13 @@ def _scan_course_for_links(course_key):
         blocks.extend(vertical.get_children())
 
     for block in blocks:
+        # Excluding 'drag-and-drop-v2' as it contains data of object type instead of string, causing errors,
+        # and it doesn't contain user-facing links to scan.
+        if block.category == 'drag-and-drop-v2':
+            continue
         block_id = str(block.usage_key)
         block_info = get_block_info(block)
         block_data = block_info['data']
-
         url_list = _get_urls(block_data)
         urls_to_validate += [[block_id, url] for url in url_list]
 
@@ -1466,3 +1470,23 @@ def create_or_update_upstream_links(
     for xblock in xblocks:
         create_or_update_xblock_upstream_link(xblock, course_key_str, created)
     course_status.update_status(LearningContextLinksStatusChoices.COMPLETED)
+
+
+@shared_task
+@set_code_owner_attribute
+def handle_unlink_upstream_block(upstream_usage_key_string: str) -> None:
+    """
+    Handle updates needed to downstream blocks when the upstream link is severed.
+    """
+    ensure_cms("handle_unlink_upstream_block may only be executed in a CMS context")
+
+    try:
+        upstream_usage_key = UsageKey.from_string(upstream_usage_key_string)
+    except (InvalidKeyError):
+        LOGGER.exception(f'Invalid upstream usage_key: {upstream_usage_key_string}')
+        return
+
+    for link in PublishableEntityLink.objects.filter(
+        upstream_usage_key=upstream_usage_key,
+    ):
+        make_copied_tags_editable(str(link.downstream_usage_key))
